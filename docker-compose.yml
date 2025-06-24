@@ -1,0 +1,48 @@
+version: '3' # Docker compose version 3 (other version is 1 and 2 but 3 widely used)
+
+services: #We will define individual containers in Services keywords
+  nginx:
+    build: ./nginx # Tell docker to build a image from the dockerfile /nginx directory
+    ports:
+      - "8080:80" # map local host port
+    depends_on: # ensure nginx starts after the go and python services
+      - service1
+      - service2
+    networks: # place this container on the shared bridge network
+      - backend
+
+  service1: #Build the Go services using the DockerFile in service_1/ directory
+    build: ./service_1
+    expose: 
+      - "8001" # expose port 8081 internally for other containers for proxy access
+    networks:
+      - backend
+    healthcheck: #Docker will check if the Go app is healthy. It runs: curl -f http://localhost:8001 
+#every 10s with a 5s timeout and retries 3 times before marking as unhealthy.
+      test: ["CMD", "curl", "-f", "http://localhost:8001"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    
+  service2: #Builds the Python app from the Dockerfile in service_2/.
+    build: ./service_2
+    expose:
+      - "8002"  # expose port 8082 internally for other containers for proxy access
+    networks: #Same shared bridge network. 
+      - backend
+    healthcheck: #Curl-based health check, same as service1. 
+#Ensures this service is working before other containers rely on it.
+      test: ["CMD", "curl", "-f", "http://localhost:8002"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+#networks: at the bottom defines the custom bridge network.
+
+#All services are placed in this network so they can resolve each other by name (service1, service2).
+
+#bridge is the default and safest option for local multi-container projects.
+
+networks:
+  backend:
+    driver: bridge
